@@ -179,6 +179,21 @@ def basicSearch(tree, start, goal):
     #
     # in which 23 would be the label for the start and 37 the
     # label for the goal.
+
+    visited = set()
+    stack = [(start, [start])]
+
+    while stack:
+        vertex, path = stack.pop()
+
+        if vertex == goal:
+            return path
+        elif vertex not in visited:
+            visited.add(vertex)
+            # Add neighbors to stack
+            for i in adjListMap[vertex]:
+                stack.append((i, path + [i]))
+        
     
     return path
 
