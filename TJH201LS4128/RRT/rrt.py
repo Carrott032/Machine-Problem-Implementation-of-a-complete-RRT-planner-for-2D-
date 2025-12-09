@@ -61,81 +61,100 @@ def drawProblem(robotStart, robotGoal, polygons):
 Grow a simple RRT 
 '''
 def growSimpleRRT(points):
-    
     newPoints = dict(points)
-    adjListMap = dict()
+    adjListMap = {}
 
+    
     adjListMap[1] = []
+    treeNodes = set([1]) 
+
     nextKey = max(newPoints.keys()) + 1
+
+    def add_edge(a, b):
+        adjListMap.setdefault(a, [])
+        adjListMap.setdefault(b, [])
+        if b not in adjListMap[a]:
+            adjListMap[a].append(b)
+        if a not in adjListMap[b]:
+            adjListMap[b].append(a)
 
     for i in sorted(newPoints.keys()):
         if i == 1:
-            continue  # root is already in the tree
+            continue  # root is already in tree
 
         p = newPoints[i]
 
         bestDistance = float('inf')
-        bestVertex = 1
-        bestEdge = None # ??
+        bestVertex = None
+        bestEdge = None #??
         bestPoint = None
-        
-        for index, coord in newPoints.items():
-            if index != 1 and index not in adjListMap:
-                continue
-            newDist = (coord[0] - p[0])*(coord[0] - p[0]) + (coord[1] - p[1])*(coord[1] - p[1])
-            if newDist < bestDistance:
-                bestDistance = newDist
+
+        for index in treeNodes:
+            coord = newPoints[index]
+            d = (coord[0]-p[0])**2 + (coord[1]-p[1])**2
+            if d < bestDistance:
+                bestDistance = d
                 bestVertex = index
 
         for u in adjListMap:
             for v in adjListMap[u]:
                 if v <= u:
                     continue
-                edgeVec = np.array(newPoints[v]) - np.array(newPoints[u])
-                if float(np.dot(edgeVec, edgeVec)) == 0.0:
+
+                pu = np.array(newPoints[u])
+                pv = np.array(newPoints[v])
+                edgeVec = pv - pu
+                length2 = np.dot(edgeVec, edgeVec)
+                if length2 == 0:
                     continue
-                t = float(np.dot(np.array(p) - np.array(newPoints[v]), edgeVec) / float(np.dot(edgeVec, edgeVec)))
-                proj = np.array(newPoints[v]) + max(0.0, min(1.0, t)) * edgeVec
+
+                t = np.dot(np.array(p) - pu, edgeVec) / length2
+                t_clamped = max(0.0, min(1.0, t))
+                proj = pu + t_clamped * edgeVec
                 projCoords = (float(proj[0]), float(proj[1]))
-                d2 = (projCoords[0] - p[0])*(projCoords[0] - p[0]) + (projCoords[1] - p[1])*(projCoords[1] - p[1])
+
+                d2 = (projCoords[0]-p[0])**2 + (projCoords[1]-p[1])**2
                 if d2 < bestDistance:
                     bestDistance = d2
-                    bestEdge = (u, v, max(0.0, min(1.0, t)))
+                    bestEdge = (u, v, t_clamped)
                     bestPoint = projCoords
+                    bestVertex = None  
 
         if bestEdge is None:
             closestVertex = bestVertex
-            adjListMap.setdefault(closestVertex, [])
+            add_edge(i, closestVertex)
+            treeNodes.add(i)
+            continue  
+
+        u, v, t = bestEdge
+
+        if 0 < t < 1:
+            newID = nextKey
+            nextKey += 1
+
+            newPoints[newID] = bestPoint
+            adjListMap.setdefault(newID, [])
+
+            if v in adjListMap.get(u, []):
+                adjListMap[u].remove(v)
+            if u in adjListMap.get(v, []):
+                adjListMap[v].remove(u)
+
+            add_edge(u, newID)
+            add_edge(newID, v)
+
+            add_edge(i, newID)
+
+            treeNodes.add(newID)
+            treeNodes.add(i)
+
         else:
-            u, v, newT = bestEdge
-            if 0 < newT < 1:
-                theID = nextKey
-                newPoints[theID] = bestPoint
-                for node in (u, v, theID):
-                    adjListMap.setdefault(node, [])
-
-                if v in adjListMap[u]:
-                    adjListMap[u].remove(v)
-                if u in adjListMap[v]:
-                    adjListMap[v].remove(u)
-
-                adjListMap[u].append(theID)
-                adjListMap[theID].append(u)
-                adjListMap[v].append(theID)
-                adjListMap[theID].append(v)
-
-                closestVertex = theID
-                nextKey += 1
-            else:
-                closestVertex = bestVertex
-                adjListMap.setdefault(closestVertex, [])
-        
-        for a, b in [(i, closestVertex), (closestVertex, i)]:
-            adjListMap.setdefault(a, [])
-            if b not in adjListMap[a]:
-                adjListMap[a].append(b)
+            closestVertex = u if t == 0 else v
+            add_edge(i, closestVertex)
+            treeNodes.add(i)
 
     return newPoints, adjListMap
+
     
     
     
@@ -179,6 +198,8 @@ def basicSearch(tree, start, goal):
         path[i], path[j] = path[j], path[i]
         i += 1
         j -= 1
+
+    print (path)
 
     return path
     
